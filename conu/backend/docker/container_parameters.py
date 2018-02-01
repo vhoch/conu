@@ -57,7 +57,47 @@ class ContainerParameters:
         :param run_builder: DockerRunBuilder
         :return: ContainerParamenters
         """
-        conf = cls()
+        table_with_parameter = {
+            "e": "environment",
+        }
+
+        table_single = {
+            "i": "stdin_open",
+            "t": "tty",
+            "d": "detach",
+
+        }
+
+        opts = run_builder.options
+        skip = False
+        options_dict = {}
+        for index in range(len(opts)):
+            if skip:
+                skip = False
+                continue
+            #if opts[index][0] == "-":
+            opts[index] = opts[index].strip('-')
+            command = opts[index]
+            try:
+                option = table_with_parameter[command]
+                parameter = opts[index+1]
+                if option in options_dict:
+                    options_dict[option].append(parameter)
+                else:
+                    options_dict[option] = [parameter]
+                skip = True
+            except KeyError:
+                try:
+                    option = table_single[command]
+                    options_dict[option] = True
+                except KeyError:
+                    try:
+                        for char in command:
+                            option = table_single[char]
+                            options_dict[option] = True
+                    except KeyError:
+                        pass
+        conf = cls(**options_dict)
 
         # .......
 
@@ -96,6 +136,6 @@ if __name__ == '__main__':
     assert para.tty
     assert para.stdin_open
 
-    drb = DockerRunBuilder(command=['sleep', '50'])
-    para = ContainerParameters().create_from_drb(drb)
-    assert para.command == ['sleep', '50']
+    #drb = DockerRunBuilder(command=['sleep', '50'])
+    #para = ContainerParameters().create_from_drb(drb)
+    #assert para.command == ['sleep', '50']
