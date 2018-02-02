@@ -57,51 +57,70 @@ class ContainerParameters:
         :param run_builder: DockerRunBuilder
         :return: ContainerParamenters
         """
-        table_with_parameter = {
-            "e": "environment",
-        }
 
-        table_single = {
-            "i": "stdin_open",
-            "t": "tty",
-            "d": "detach",
+        import argparse
+        parser = argparse.ArgumentParser(add_help=False)
 
-        }
+        # without parameter
+        parser.add_argument("-i",   "--interactive",    action="store_true", dest="stdin_open")
+        parser.add_argument("-d",   "--detach",         action="store_true", dest="detach")
+        parser.add_argument("-t",   "--tty",            action="store_true", dest="tty")
 
-        opts = run_builder.options
-        skip = False
-        options_dict = {}
-        for index in range(len(opts)):
-            if skip:
-                skip = False
-                continue
-            #if opts[index][0] == "-":
-            opts[index] = opts[index].strip('-')
-            command = opts[index]
-            try:
-                option = table_with_parameter[command]
-                parameter = opts[index+1]
-                if option in options_dict:
-                    options_dict[option].append(parameter)
-                else:
-                    options_dict[option] = [parameter]
-                skip = True
-            except KeyError:
-                try:
-                    option = table_single[command]
-                    options_dict[option] = True
-                except KeyError:
+        # string parameter
+        parser.add_argument("-h",   "--hostname",       action="store", dest="hostname")
+        parser.add_argument("-u",   "--user",           action="store", dest="user")
+        parser.add_argument(        "--name",           action="store", dest="name")
+        parser.add_argument(        "--entrypoint",     action="store", dest="entrypoint")
+        parser.add_argument("-w",   "--workdir",        action="store", dest="working_dir")
+        parser.add_argument(        "--mac-address",    action="store", dest="mac_address")
+        parser.add_argument(        "--stop-signal",    action="store", dest="stop_signal")
+        # parser.add_argument("",                         action="store", dest="image")
+        # parser.add_argument("",                         action="store", dest="command")
+        # parser.add_argument("",                         action="store", dest="runtime")
+        # parser.add_argument("",                         action="store", dest="domainname")
+
+        # int parameter
+        # parser.add_argument("",                         action="store", dest="stop_timeout", type=int)
+
+        # list parameter
+        parser.add_argument("-e",   "--env",            action="append", dest="environment")
+        parser.add_argument("-p",   "--publish",        action="append", dest="ports")
+        parser.add_argument(        "--volumes-from",   action="append", dest="volumes")
+
+        # dict parameter
+        parser.add_argument("-l",   "--label",          action="append", dest="labels")
+        parser.add_argument(        "--net-alias",      action="append", dest="networking_config")
+        # parser.add_argument("",                         action="append", dest="host_config")
+        # parser.add_argument("",                         action="append", dest="healthcheck")
+
+        args = parser.parse_args(args=run_builder.options)
+        command = run_builder.arguments
+        if command:
+            conf = cls(command)
+            return conf
+
+        options_dict = vars(args)
+
+        with_dictionary_parameter = ['labels', 'networking_config']
+        for name in with_dictionary_parameter:
+            if options_dict[name] != None:
+                dictionary = {}
+                for item in options_dict[name]:
                     try:
-                        for char in command:
-                            option = table_single[char]
-                            options_dict[option] = True
-                    except KeyError:
-                        pass
+                        key, value = item.split(":")
+                        dictionary[key] = value
+                    except ValueError:
+                        dictionary = options_dict[name]
+                        break
+                options_dict[name] = dictionary
+
         conf = cls(**options_dict)
+
+        return conf
 
         # .......
 
-        return conf
+
 
     def get_docker_run_builder(self):
         """
@@ -136,6 +155,10 @@ if __name__ == '__main__':
     assert para.tty
     assert para.stdin_open
 
-    #drb = DockerRunBuilder(command=['sleep', '50'])
-    #para = ContainerParameters().create_from_drb(drb)
-    #assert para.command == ['sleep', '50']
+    drb = DockerRunBuilder(command=['sleep', '50'])
+    para = ContainerParameters().create_from_drb(drb)
+    assert para.command == ['sleep', '50']
+
+    drb = DockerRunBuilder(additional_opts=['-l', 'KEY:space'])
+    para = ContainerParameters().create_from_drb(drb)
+    assert para.labels == {"KEY":"space"}
