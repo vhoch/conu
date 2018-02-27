@@ -1,3 +1,5 @@
+from docker.types import Healthcheck
+
 from conu import DockerRunBuilder
 
 # Parameter definitions in `docker run --help`
@@ -74,8 +76,6 @@ class ContainerParameters:
         parser.add_argument("-w",   "--workdir",        action="store", dest="working_dir")
         parser.add_argument(        "--mac-address",    action="store", dest="mac_address")
         parser.add_argument(        "--stop-signal",    action="store", dest="stop_signal")
-        # parser.add_argument("",                         action="store", dest="image")
-        # parser.add_argument("",                         action="store", dest="command")
         # parser.add_argument("",                         action="store", dest="runtime")
         # parser.add_argument("",                         action="store", dest="domainname")
 
@@ -90,8 +90,21 @@ class ContainerParameters:
         # dict parameter
         parser.add_argument("-l",   "--label",          action="append", dest="labels")
         parser.add_argument(        "--net-alias",      action="append", dest="networking_config")
-        # parser.add_argument("",                         action="append", dest="host_config")
-        # parser.add_argument("",                         action="append", dest="healthcheck")
+        # parser.add_argument("",                         action="append", dest="host_config") # return instance
+
+        # health
+        parser.add_argument(        "--health-cmd",     action="store",      dest="health_cmd")
+        parser.add_argument(        "--health-interval", action="store",     dest="health_interval", type=int)
+        parser.add_argument(        "--health-retries", action="store",      dest="health_retries", type=int)
+        parser.add_argument(        "--health-timeout", action="store",      dest="health_timeout", type=int)
+        parser.add_argument(        "--no-healthcheck", action="store_true", dest="no_healthcheck")
+
+        # network
+        parser.add_argument(        "--network-alias",  action="append",    dest="network_alias", default=[])
+        parser.add_argument(        "--ip",             action="store",     dest="ip", default="")
+        parser.add_argument(        "--ip6",            action="store",     dest="ip6", default="")
+        parser.add_argument(        "--link-local-ip",  action="append",    dest="link_local_ip", default=[])
+
 
         args = parser.parse_args(args=run_builder.options)
         command = run_builder.arguments
@@ -101,13 +114,44 @@ class ContainerParameters:
 
         options_dict = vars(args)
 
+        healthcheck = Healthcheck()
+        health_cmd = options_dict.pop("health_cmd")
+        health_interval = options_dict.pop("health_interval")
+        health_timeout = options_dict.pop("health_timeout")
+        health_retries = options_dict.pop("health_retries")
+        no_healthcheck = options_dict.pop("no_healthcheck")
+
+        if health_cmd is not None: healthcheck.test = health_cmd
+        if health_interval is not None: healthcheck.interval = health_interval
+        if health_timeout is not None: healthcheck.timeout = health_timeout
+        if health_retries is not None: healthcheck.retries = health_retries
+        # if healthcheck: healthcheck = Healthcheck()
+        options_dict["healthcheck"] = healthcheck
+
+
+        network_alias = options_dict.pop("network_alias")
+        ip = options_dict.pop("ip")
+        link_local_ip = options_dict.pop("link_local_ip")
+        ip6 = options_dict.pop("ip6")
+
+        """endpoint = docker_client.create_endpoint_config(
+                ipv4_address="",
+                ipv6_address="",
+                aliases=[],
+                links=[]
+            )
+
+        networking_config = docker_client.create_networking_config({
+            'network1': endpoint
+        })"""
+
         with_dictionary_parameter = ['labels', 'networking_config']
         for name in with_dictionary_parameter:
-            if options_dict[name] != None:
+            if options_dict[name] is not None:
                 dictionary = {}
                 for item in options_dict[name]:
                     try:
-                        key, value = item.split(":")
+                        key, value = item.split("=")
                         dictionary[key] = value
                     except ValueError:
                         dictionary = options_dict[name]
@@ -120,23 +164,18 @@ class ContainerParameters:
 
         # .......
 
-
-
     def get_docker_run_builder(self):
         """
         Create DockerRunBuilder with parameters set
 
         :return: DockerRunBuilder
         """
-        additional_opts=[]
+        additional_opts = []
         command = []
 
         # ......
 
         return DockerRunBuilder(additional_opts=additional_opts, command=command)
-
-
-
 
 # Just for testing purposes
 if __name__ == '__main__':
@@ -159,6 +198,14 @@ if __name__ == '__main__':
     para = ContainerParameters().create_from_drb(drb)
     assert para.command == ['sleep', '50']
 
-    drb = DockerRunBuilder(additional_opts=['-l', 'KEY:space'])
+    drb = DockerRunBuilder(additional_opts=['-l', 'KEY=space'])
     para = ContainerParameters().create_from_drb(drb)
-    assert para.labels == {"KEY":"space"}
+    assert para.labels == {"KEY": "space"}
+
+    drb = DockerRunBuilder(additional_opts=['--health-interval', '47521', '--health-timeout', '15'])
+    para = ContainerParameters().create_from_drb(drb)
+    assert para.healthcheck['Interval'] == 47521
+    assert para.healthcheck['Timeout'] == 15
+
+    drb = DockerRunBuilder(additional_opts=['--ip', '192.168.1.1', '--network-alias', 'hello'])
+    para = ContainerParameters().create_from_drb(drb)
