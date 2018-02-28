@@ -100,10 +100,10 @@ class ContainerParameters:
         parser.add_argument(        "--no-healthcheck", action="store_true", dest="no_healthcheck")
 
         # network
-        parser.add_argument(        "--network-alias",  action="append",    dest="network_alias", default=[])
-        parser.add_argument(        "--ip",             action="store",     dest="ip", default="")
-        parser.add_argument(        "--ip6",            action="store",     dest="ip6", default="")
-        parser.add_argument(        "--link-local-ip",  action="append",    dest="link_local_ip", default=[])
+        # parser.add_argument(        "--network-alias",  action="append",    dest="network_alias", default=[])
+        # parser.add_argument(        "--ip",             action="store",     dest="ip", default="")
+        # parser.add_argument(        "--ip6",            action="store",     dest="ip6", default="")
+        # parser.add_argument(        "--link-local-ip",  action="append",    dest="link_local_ip", default=[])
 
 
         args = parser.parse_args(args=run_builder.options)
@@ -114,36 +114,22 @@ class ContainerParameters:
 
         options_dict = vars(args)
 
-        healthcheck = Healthcheck()
-        health_cmd = options_dict.pop("health_cmd")
-        health_interval = options_dict.pop("health_interval")
-        health_timeout = options_dict.pop("health_timeout")
-        health_retries = options_dict.pop("health_retries")
-        no_healthcheck = options_dict.pop("no_healthcheck")
-
-        if health_cmd is not None: healthcheck.test = health_cmd
-        if health_interval is not None: healthcheck.interval = health_interval
-        if health_timeout is not None: healthcheck.timeout = health_timeout
-        if health_retries is not None: healthcheck.retries = health_retries
-        # if healthcheck: healthcheck = Healthcheck()
-        options_dict["healthcheck"] = healthcheck
-
-
-        network_alias = options_dict.pop("network_alias")
-        ip = options_dict.pop("ip")
-        link_local_ip = options_dict.pop("link_local_ip")
-        ip6 = options_dict.pop("ip6")
-
-        """endpoint = docker_client.create_endpoint_config(
-                ipv4_address="",
-                ipv6_address="",
-                aliases=[],
-                links=[]
+        if not options_dict.pop("no_healthcheck", None):
+            options_dict["healthcheck"] = Healthcheck(
+                test=options_dict.pop("health_cmd", None),
+                interval=options_dict.pop("health_interval", None),
+                timeout=options_dict.pop("health_timeout", None),
+                retries=options_dict.pop("health_retries", None)
             )
-
+        """
         networking_config = docker_client.create_networking_config({
-            'network1': endpoint
-        })"""
+            'network1': docker_client.create_endpoint_config(
+                ipv4_address=options_dict.pop("ip", None),
+                ipv6_address=options_dict.pop("ip6", None),
+                aliases=options_dict.pop("network_alias"),
+                links=options_dict.pop("link_local_ip")
+            )
+        }) """
 
         with_dictionary_parameter = ['labels', 'networking_config']
         for name in with_dictionary_parameter:
@@ -207,5 +193,5 @@ if __name__ == '__main__':
     assert para.healthcheck['Interval'] == 47521
     assert para.healthcheck['Timeout'] == 15
 
-    drb = DockerRunBuilder(additional_opts=['--ip', '192.168.1.1', '--network-alias', 'hello'])
-    para = ContainerParameters().create_from_drb(drb)
+    # drb = DockerRunBuilder(additional_opts=['--ip', '192.168.1.1', '--network-alias', 'hello'])
+    # para = ContainerParameters().create_from_drb(drb)
