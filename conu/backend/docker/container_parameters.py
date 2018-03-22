@@ -1,4 +1,6 @@
+from docker.api.container import ContainerApiMixin
 from docker.types import Healthcheck
+import docker
 
 from conu import DockerRunBuilder
 
@@ -14,7 +16,7 @@ class ContainerParameters:
     def __init__(self, command=None, hostname=None, user=None,
                          detach=False, stdin_open=False, tty=False,
                          mem_limit=None, ports=None, environment=None,
-                         dns=None, volumes=None, volumes_from=None,
+                         volumes=None,
                          network_disabled=False, name=None, entrypoint=None,
                          cpu_shares=None, working_dir=None, domainname=None,
                          memswap_limit=None, cpuset=None, host_config=None,
@@ -30,9 +32,7 @@ class ContainerParameters:
         self.mem_limit = mem_limit
         self.ports = ports
         self.environment = environment
-        self.dns = dns
         self.volumes = volumes
-        self.volumes_from = volumes_from
         self.network_disabled = network_disabled
         self.name = name
         self.entrypoint = entrypoint
@@ -85,12 +85,11 @@ class ContainerParameters:
         # list parameter
         parser.add_argument("-e",   "--env",            action="append", dest="environment")
         parser.add_argument("-p",   "--publish",        action="append", dest="ports")
-        parser.add_argument(        "--volumes-from",   action="append", dest="volumes")
+        parser.add_argument("-v",                       action="append", dest="volumes")
 
         # dict parameter
         parser.add_argument("-l",   "--label",          action="append", dest="labels")
-        parser.add_argument(        "--net-alias",      action="append", dest="networking_config")
-        # parser.add_argument("",                         action="append", dest="host_config") # return instance
+        ## parser.add_argument("",                         action="append", dest="host_config") # return instance
 
         # health
         parser.add_argument(        "--health-cmd",     action="store",      dest="health_cmd")
@@ -104,7 +103,6 @@ class ContainerParameters:
         # parser.add_argument(        "--ip",             action="store",     dest="ip", default="")
         # parser.add_argument(        "--ip6",            action="store",     dest="ip6", default="")
         # parser.add_argument(        "--link-local-ip",  action="append",    dest="link_local_ip", default=[])
-
 
         args = parser.parse_args(args=run_builder.options)
         command = run_builder.arguments
@@ -121,9 +119,22 @@ class ContainerParameters:
                 timeout=options_dict.pop("health_timeout", None),
                 retries=options_dict.pop("health_retries", None)
             )
+
+        contMixin = ContainerApiMixin()
+
+        if options_dict["volumes"]:
+            volume = options_dict.pop("volumes")[0].split(":")
+            try:
+                options_dict["volumes"] = volume[1]
+            except IndexError:
+                options_dict["volumes"] = volume[0]
+
+            options_dict["host_config"] = contMixin.create_host_config(binds=[
+                ':'.join(volume)
+            ])
         """
-        networking_config = docker_client.create_networking_config({
-            'network1': docker_client.create_endpoint_config(
+        options_dict["networking_config"] = contMixin.create_networking_config({
+            'network1': contMixin.create_endpoint_config(
                 ipv4_address=options_dict.pop("ip", None),
                 ipv6_address=options_dict.pop("ip6", None),
                 aliases=options_dict.pop("network_alias"),
@@ -131,7 +142,7 @@ class ContainerParameters:
             )
         }) """
 
-        with_dictionary_parameter = ['labels', 'networking_config']
+        with_dictionary_parameter = ['labels']
         for name in with_dictionary_parameter:
             if options_dict[name] is not None:
                 dictionary = {}
@@ -195,3 +206,8 @@ if __name__ == '__main__':
 
     # drb = DockerRunBuilder(additional_opts=['--ip', '192.168.1.1', '--network-alias', 'hello'])
     # para = ContainerParameters().create_from_drb(drb)
+
+    drb = DockerRunBuilder(additional_opts=['-v', '/home/user1/:/mnt/vol2'])
+    para = ContainerParameters().create_from_drb(drb)
+    assert para.volumes == "/mnt/vol2"
+
