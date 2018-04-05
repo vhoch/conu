@@ -6,6 +6,7 @@ from conu import DockerRunBuilder
 
 # Parameter definitions in `docker run --help`
 # Compare with https://github.com/docker/docker-py/blob/master/docker/api/container.py#L235
+from conu.backend.docker.client import get_client
 
 
 class ContainerParameters:
@@ -89,7 +90,7 @@ class ContainerParameters:
 
         # dict parameter
         parser.add_argument("-l",   "--label",          action="append", dest="labels")
-        ## parser.add_argument("",                         action="append", dest="host_config") # return instance
+        # parser.add_argument("",                         action="append", dest="host_config")  # return instance
 
         # health
         parser.add_argument(        "--health-cmd",     action="store",      dest="health_cmd")
@@ -120,7 +121,7 @@ class ContainerParameters:
                 retries=options_dict.pop("health_retries", None)
             )
 
-        contMixin = ContainerApiMixin()
+        """client = get_client()
 
         if options_dict["volumes"]:
             volume = options_dict.pop("volumes")[0].split(":")
@@ -129,18 +130,18 @@ class ContainerParameters:
             except IndexError:
                 options_dict["volumes"] = volume[0]
 
-            options_dict["host_config"] = contMixin.create_host_config(binds=[
+            options_dict["host_config"] = client.create_host_config(binds=[
                 ':'.join(volume)
             ])
-        """
-        options_dict["networking_config"] = contMixin.create_networking_config({
-            'network1': contMixin.create_endpoint_config(
+
+        options_dict["networking_config"] = client.create_networking_config({
+            'network1': client.create_endpoint_config(
                 ipv4_address=options_dict.pop("ip", None),
                 ipv6_address=options_dict.pop("ip6", None),
                 aliases=options_dict.pop("network_alias"),
                 links=options_dict.pop("link_local_ip")
             )
-        }) """
+        })"""
 
         with_dictionary_parameter = ['labels']
         for name in with_dictionary_parameter:
@@ -169,8 +170,38 @@ class ContainerParameters:
         """
         additional_opts = []
         command = []
+        x = vars(para)
 
+        for key, value in x.items():
+            if value is None or value is False:  # if base value is default
+                pass
+
+            elif value is True:
+                additional_opts.append(key)
+
+            elif isinstance(value, Healthcheck):
+                for k, v in value.items():
+                    if v is None or v is False:
+                        pass
+                    else:
+                        additional_opts.append(k)
+                        additional_opts.append(v)
+
+            elif isinstance(value, list):
+                for item in value:
+                    additional_opts.append(key)
+                    additional_opts.append(item)
+
+            elif isinstance(value, dict):
+                for ke, val in value.items():
+                    additional_opts.append(key)
+                    additional_opts.append("=".join([ke, val]))
+
+            else:  # if value is changed add to opts
+                additional_opts.append(key)
+                additional_opts.append(value)
         # ......
+        print(additional_opts)
 
         return DockerRunBuilder(additional_opts=additional_opts, command=command)
 
@@ -199,15 +230,20 @@ if __name__ == '__main__':
     para = ContainerParameters().create_from_drb(drb)
     assert para.labels == {"KEY": "space"}
 
-    drb = DockerRunBuilder(additional_opts=['--health-interval', '47521', '--health-timeout', '15'])
+    # drb = DockerRunBuilder(additional_opts=['--health-interval', '47521', '--health-timeout', '15'])  #healthcheck test
+    # drb = DockerRunBuilder(additional_opts=['-l', 'hello=there', '-l', 'oh=noo'])  # dict test
+    # drb = DockerRunBuilder(additional_opts=['-v', 'hey', '-v', 'wow'])  # list test
+    # drb = DockerRunBuilder(additional_opts=['-h', 'yoyo'])  # string test
+    # drb = DockerRunBuilder(additional_opts=['-it'])  # True/False test
+    drb = DockerRunBuilder(additional_opts=['-it', '-h','yoyo', '-v','hey', '-l', 'hello=there', '--health-interval', '47521']) # all in one test
     para = ContainerParameters().create_from_drb(drb)
-    assert para.healthcheck['Interval'] == 47521
-    assert para.healthcheck['Timeout'] == 15
+    # assert para.healthcheck['Interval'] == 47521
+    # assert para.healthcheck['Timeout'] == 15
+    para.get_docker_run_builder()
 
     # drb = DockerRunBuilder(additional_opts=['--ip', '192.168.1.1', '--network-alias', 'hello'])
     # para = ContainerParameters().create_from_drb(drb)
 
-    drb = DockerRunBuilder(additional_opts=['-v', '/home/user1/:/mnt/vol2'])
-    para = ContainerParameters().create_from_drb(drb)
-    assert para.volumes == "/mnt/vol2"
-
+    # drb = DockerRunBuilder(additional_opts=['-v', '/home/user1/:/mnt/vol2'])
+    # para = ContainerParameters().create_from_drb(drb)
+    # assert para.volumes == "/mnt/vol2"
