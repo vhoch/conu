@@ -172,36 +172,68 @@ class ContainerParameters:
         command = []
         x = vars(para)
 
+        translate = {
+            "stdin_open": "-i",
+            "detach": "-d",
+            "tty": "-t",
+            "hostname": "-h",
+            "user": "-u",
+            "name": "--name",
+            "entrypoint": "--entrypoint",
+            "working_dir": "-w",
+            "mac_address": "--mac-address",
+            "stop_signal": "--stop-signal",
+            "environment": "-e",
+            "ports": "-p",
+            "volumes": "-v",
+            "labels": "-l",
+            "test": "--health-cmd",
+            "interval": "--health-interval",
+            "retries": "--health-retries",
+            "timeout": "--health-timeout",
+            "no_healthcheck": "--no-healthcheck",
+            "network_alias": "--network-alias",
+            "ip": "--ip",
+            "ip6": "--ip6",
+            "link_local_ip": "--link-local-ip",
+        }
+
         for key, value in x.items():
-            if value is None or value is False:  # if base value is default
+            if value is None or value is False:  # if value is default
                 pass
 
+            elif key == "command":
+                for v in value:
+                    command.append(v)
+
             elif value is True:
-                additional_opts.append(key)
+                additional_opts.append(translate[key.lower()])
 
             elif isinstance(value, Healthcheck):
                 for k, v in value.items():
                     if v is None or v is False:
                         pass
+                    elif isinstance(v, list):
+                        additional_opts.append(translate[k.lower()])
+                        additional_opts.append(v[1])
                     else:
-                        additional_opts.append(k)
-                        additional_opts.append(v)
+                        additional_opts.append(translate[k.lower()])
+                        additional_opts.append(str(v))
 
             elif isinstance(value, list):
                 for item in value:
-                    additional_opts.append(key)
-                    additional_opts.append(item)
+                    additional_opts.append(translate[key.lower()])
+                    additional_opts.append(str(item))
 
             elif isinstance(value, dict):
-                for ke, val in value.items():
-                    additional_opts.append(key)
-                    additional_opts.append("=".join([ke, val]))
+                for k, v in value.items():
+                    additional_opts.append(translate[key.lower()])
+                    additional_opts.append("=".join([k, v]))
 
             else:  # if value is changed add to opts
-                additional_opts.append(key)
-                additional_opts.append(value)
+                additional_opts.append(translate[key.lower()])
+                additional_opts.append(str(value))
         # ......
-        print(additional_opts)
 
         return DockerRunBuilder(additional_opts=additional_opts, command=command)
 
@@ -230,17 +262,18 @@ if __name__ == '__main__':
     para = ContainerParameters().create_from_drb(drb)
     assert para.labels == {"KEY": "space"}
 
-    # drb = DockerRunBuilder(additional_opts=['--health-interval', '47521', '--health-timeout', '15'])  #healthcheck test
-    # drb = DockerRunBuilder(additional_opts=['-l', 'hello=there', '-l', 'oh=noo'])  # dict test
-    # drb = DockerRunBuilder(additional_opts=['-v', 'hey', '-v', 'wow'])  # list test
-    # drb = DockerRunBuilder(additional_opts=['-h', 'yoyo'])  # string test
-    # drb = DockerRunBuilder(additional_opts=['-it'])  # True/False test
-    drb = DockerRunBuilder(additional_opts=['-it', '-h','yoyo', '-v','hey', '-l', 'hello=there', '--health-interval', '47521']) # all in one test
+    # drb = DockerRunBuilder(additional_opts=['-i', '-d', '-t'])
+    # drb = DockerRunBuilder(additional_opts=['-h', '1', '-u', '2', '--name', '3', '--entrypoint', '4', '-w', '5', '--mac-address', '6', '--stop-signal', '7'])
+    # drb = DockerRunBuilder(additional_opts=['-e', 'TIME=now', '-p', '9', '-v', '/home/user1/:/mnt/vol2'])
+    drb = DockerRunBuilder(additional_opts=['-l', 'KEY=space'])
+    # drb = DockerRunBuilder(additional_opts=['--health-cmd', '777', '--health-interval', '47521', '--health-retries', '666', '--health-timeout', '15'])  #healthcheck test
+    # drb = DockerRunBuilder(command=['sleep', '50'])
+
     para = ContainerParameters().create_from_drb(drb)
     # assert para.healthcheck['Interval'] == 47521
     # assert para.healthcheck['Timeout'] == 15
-    para.get_docker_run_builder()
-
+    x = para.get_docker_run_builder()
+    print(x)
     # drb = DockerRunBuilder(additional_opts=['--ip', '192.168.1.1', '--network-alias', 'hello'])
     # para = ContainerParameters().create_from_drb(drb)
 
